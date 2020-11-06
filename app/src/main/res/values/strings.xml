@@ -1,3 +1,8 @@
 <resources>
     <string name="app_name">Notes</string>
+    <string name="dummy_text">I am Jugal Mistry a student of D. J. Sanghvi College of Engineering. We are planning an Internship Fair in Our college. These are some of the highlights :
+Annual Internship Fair of the College.
+More than 60 students got internships last year.
+We offer Technical as well as Non-Technical internships like Development, Graphic design, Marketing.
+We offer paid internships for the period of summer</string>
 </resources>

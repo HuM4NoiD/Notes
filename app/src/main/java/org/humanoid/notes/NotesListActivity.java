@@ -1,60 +1,96 @@
 package org.humanoid.notes;
 
+import android.content.Intent;
 import android.os.Bundle;
+import android.view.View;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.app.AppCompatDelegate;
+import androidx.appcompat.widget.Toolbar;
+import androidx.lifecycle.Observer;
+import androidx.recyclerview.widget.ItemTouchHelper;
+import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-import androidx.recyclerview.widget.StaggeredGridLayoutManager;
 
-import com.github.javafaker.Faker;
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
-import org.humanoid.notes.adapters.NotesRecyclerAdapter;
+import org.humanoid.notes.adapters.NoteAdapter;
 import org.humanoid.notes.models.Note;
+import org.humanoid.notes.persistence.NoteRepository;
 import org.humanoid.notes.util.SpacingItemDecorator;
 
 import java.util.ArrayList;
-import java.util.Date;
+import java.util.List;
 
-public class NotesListActivity extends AppCompatActivity {
+public class NotesListActivity extends AppCompatActivity implements NoteAdapter.NoteClickListener {
     private static final String TAG = "NotesListActivity";
 
     private RecyclerView mRecyclerView;
+    private FloatingActionButton mAddNoteButton;
 
     private ArrayList<Note> mNotes = new ArrayList<>();
-    private NotesRecyclerAdapter mAdapter;
+    private NoteAdapter mAdapter;
+    private NoteRepository mNoteRepository;
 
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_notes_list);
+        Toolbar toolbar = findViewById(R.id.note_list_toolbar);
+        setSupportActionBar(toolbar);
+        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES);
 
         mRecyclerView = findViewById(R.id.recycler_view);
-        getDummyNotes();
+        mAddNoteButton = findViewById(R.id.fab);
+
+        mAddNoteButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                Intent intent = new Intent(NotesListActivity.this, NoteActivity.class);
+                startActivity(intent);
+            }
+        });
+
+        mNoteRepository = new NoteRepository(this);
+//        getDummyNotes();
+        retrieveNotes();
         initRecyclerView();
     }
 
-    private void initRecyclerView(){
-        StaggeredGridLayoutManager layoutManager =
-                new StaggeredGridLayoutManager(2,StaggeredGridLayoutManager.VERTICAL);
-        mRecyclerView.setLayoutManager(layoutManager);
-        SpacingItemDecorator itemDecorator = new SpacingItemDecorator(8);
-        mAdapter = new NotesRecyclerAdapter(mNotes);
-        mRecyclerView.setAdapter(mAdapter);
+    private void retrieveNotes() {
+        mNoteRepository.retrieveNotesTask().observe(this, new Observer<List<Note>>() {
+            @Override
+            public void onChanged(List<Note> notes) {
+                if (mNotes.size() > 0) {
+                    mNotes.clear();
+                }
+                if (notes != null) {
+                    mNotes.addAll(notes);
+                }
+                mAdapter.notifyDataSetChanged();
+            }
+        });
     }
 
-    private void getDummyNotes() {
-        for (int i = 0; i <= 19; ++i) {
-            Note note = new Note();
-            Faker faker = new Faker();
-            note.setTitle(faker.rickAndMorty().character());
-            note.setContent(faker.rickAndMorty().quote());
-            note.setTimestamp(faker.date()
-                    .between(new Date(2018, 12, 20),
-                            new Date(2019, 1, 30)).toString());
-            mNotes.add(note);
-        }
+    @Override
+    public void onNoteClick(int position) {
+//        Toast.makeText(this,"Testing clicks " + position, Toast.LENGTH_SHORT).show();
+        Intent intent = new Intent(this, NoteActivity.class);
+        intent.putExtra("Note", mNotes.get(position));
+        startActivity(intent);
+    }
+
+    private void initRecyclerView(){
+        LinearLayoutManager layoutManager = new LinearLayoutManager(this);
+        mRecyclerView.setLayoutManager(layoutManager);
+        SpacingItemDecorator itemDecorator = new SpacingItemDecorator(4);
+        mRecyclerView.addItemDecoration(itemDecorator);
+        ItemTouchHelper helper = new ItemTouchHelper(mItemTouchHelperCallback);
+        helper.attachToRecyclerView(mRecyclerView);
+        mAdapter = new NoteAdapter(mNotes, this);
+        mRecyclerView.setAdapter(mAdapter);
     }
 
     @Override
@@ -80,5 +116,28 @@ public class NotesListActivity extends AppCompatActivity {
     @Override
     protected void onRestoreInstanceState(Bundle savedInstanceState) {
         super.onRestoreInstanceState(savedInstanceState);
+    }
+
+    private ItemTouchHelper.SimpleCallback mItemTouchHelperCallback = new ItemTouchHelper.SimpleCallback(
+            0, ItemTouchHelper.RIGHT | ItemTouchHelper.LEFT) {
+        @Override
+        public boolean onMove(@NonNull RecyclerView recyclerView,
+                @NonNull RecyclerView.ViewHolder viewHolder,
+                @NonNull RecyclerView.ViewHolder target) {
+            return false;
+        }
+
+        @Override
+        public void onSwiped(@NonNull RecyclerView.ViewHolder viewHolder, int direction) {
+            removeNote(viewHolder.getAdapterPosition());
+        }
+    };
+
+    private void removeNote(int noteIndex) {
+        mNoteRepository.deleteNote(mNotes.get(noteIndex));
+
+        mNotes.remove(noteIndex);
+        mAdapter.notifyItemRemoved(noteIndex);
+        mAdapter.notifyItemRangeChanged(noteIndex, mNotes.size());
     }
 }
